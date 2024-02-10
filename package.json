@@ -1,0 +1,10 @@
+{
+  "name": "web-audit-module-cpu",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "web_audit": "https://thomasse@bitbucket.org/thomasse/quality_audit.git#5.x-dev"
+  }
+}
