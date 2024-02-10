@@ -5,6 +5,6 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "web_audit": "https://thomasse@bitbucket.org/thomasse/quality_audit.git#5.x-dev"
+    "web_audit": "^5.0.0-rc3"
   }
 }
