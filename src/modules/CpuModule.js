@@ -67,6 +67,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 	sampleDuration = 0.1;
 
+	contexts = [];
+
 	/**
 	 * {@inheritdoc}
 	 */
@@ -79,7 +81,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 				url: 'Url',
 				context: 'Context',
 				time: 'Time',
-				cpu: 'CPU time',
+				cpu: 'Execution time',
 			},
 			...durationMetrics
 		});
@@ -90,7 +92,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 				time: 'Time',
 				step: 'Step',
 				context: 'Context',
-				cpu: 'CPU time',
+				cpu: 'Execution time',
 			},
 			...durationMetrics
 		});
@@ -104,8 +106,9 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 */
 	initEvents(journey) {
 		journey.on(PuppeteerJourneyEvents.JOURNEY_START, async (data) => this.startMeasure(data.wrapper));
-		journey.on(PuppeteerJourneyEvents.JOURNEY_AFTER_STEP, async (data) => this.contextsData.step = data.name);
-		journey.on(PuppeteerJourneyEvents.JOURNEY_NEW_CONTEXT, async (data) => this.contextsData.context = data.name);
+		// journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => this.steps.push(data.name));
+		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => this.contextsData.step = data.name);
+		journey.on(PuppeteerJourneyEvents.JOURNEY_NEW_CONTEXT, async (data) => this.contextsData.context = data.name && this.contexts.push(data.name));
 		journey.on(PuppeteerJourneyEvents.JOURNEY_END, async () => this.stopMeasure(true));
 		journey.on(PuppeteerJourneyEvents.JOURNEY_ERROR, async () => this.stopMeasure(false));
 		this.context?.eventBus.on(ModuleEvents.startsComputing, () => this.pauseMeasure());
@@ -244,11 +247,12 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	getResult(urlWrapper) {
 		this.snapshots.sort((snapA, snapB) => snapA.metrics.Timestamp - snapB.metrics.Timestamp);
 
-
 		// Samples data.
 		const samples = this.getSampleData(this.snapshots);
+		let cumulativeCpu = 0;
 
 		// Log samples data.
+		let context = null;
 		samples
 			.forEach((sample) => {
 				const item = {
@@ -261,6 +265,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 					...this.getSnapshotData(sample.average)
 				};
 
+				cumulativeCpu += item?.cpu || 0;
+
 				this.context?.config?.storage?.add('cpu_history', this.context, item);
 			});
 
@@ -269,6 +275,10 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			return {metrics: item.average}
 		}), true);
 		average.time = samples[samples.length - 1].timestamp;
+		average.url = urlWrapper.url;
+		average.cpu = cumulativeCpu;
+		average.context = samples[samples.length - 1].context;
+
 		this.context?.config?.storage?.add('cpu', this.context, average);
 		this.context?.config?.logger.result('CPU', average, urlWrapper.url.toString());
 
@@ -324,13 +334,23 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 		samples = Object.values(samples);
 
+		const unique = (value, index, array) => array.indexOf(value) === index;
+		const contextsList = samples.map(item => item.context).filter(unique);
+
 		// Get derivative.
 		samples.map(sample => {
 			sample.snapshots = this.getDerivative(sample.snapshots);
 			sample.average = this.getAverageData(sample.snapshots);
 
+			// Reaffect correct context.
+			let realContext = contextsList.indexOf(sample.context) > -1 ? contextsList.indexOf(sample.context) : this.contexts.length - 1;
+			sample.context = this.contexts[realContext];
+
+
 			return sample;
-		})
+		});
+
+		// Sort context.
 
 		return samples;
 	}
