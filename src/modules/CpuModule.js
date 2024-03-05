@@ -40,8 +40,8 @@ const durationMetrics = {
 	'DevToolsCommandDuration': 'Dev Tools Command Duration',
 	'ScriptDuration': 'Script Duration',
 	'V8CompileDuration': 'V8 Compile Duration',
-	'TaskDuration': 'Task Duration',
 	'TaskOtherDuration': 'Task Other Duration',
+	'TaskDuration': 'Task Duration',
 	// 'ThreadTime',
 	// 'ProcessTime',
 	// 'JSHeapUsedSize',
@@ -50,6 +50,20 @@ const durationMetrics = {
 	// 'DomContentLoaded',
 	// 'NavigationStart',
 };
+
+const globalMetrics = {
+	'Timestamp': 'Time',
+	'LayoutDuration': 'Layout Duration (Display)',
+	'RecalcStyleDuration': 'Recalc Style Duration (Render)',
+	'DevToolsCommandDuration': 'Dev Tools Command Duration',
+	'ScriptDuration': 'Script Duration (Script)',
+	'V8CompileDuration': 'V8 Compile Duration',
+	'TaskOtherDuration': 'Task Other Duration',
+	'TaskDuration': 'Task Duration',
+	'TaskDurationWithoutDevTools': 'Task Duration without dev tools',
+	'ThreadTime': 'Thread time',
+	'ProcessTime': 'Process time',
+}
 
 /**
  * CPU.
@@ -80,10 +94,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			...{
 				url: 'Url',
 				context: 'Context',
-				time: 'Time',
-				cpu: 'Execution time',
 			},
-			...durationMetrics
+			...globalMetrics
 		});
 
 		this.context?.config.storage?.installStore('cpu_history', this.context, {
@@ -92,7 +104,6 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 				time: 'Time',
 				step: 'Step',
 				context: 'Context',
-				cpu: 'Execution time',
 			},
 			...durationMetrics
 		});
@@ -106,13 +117,14 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 */
 	initEvents(journey) {
 		journey.on(PuppeteerJourneyEvents.JOURNEY_START, async (data) => this.startMeasure(data.wrapper));
-		// journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => this.steps.push(data.name));
-		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => this.contextsData.step = data.name);
+		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => {
+			this.unpauseMeasure();
+			this.contextsData.step = data.name;
+		});
 		journey.on(PuppeteerJourneyEvents.JOURNEY_NEW_CONTEXT, async (data) => this.contextsData.context = data.name && this.contexts.push(data.name));
 		journey.on(PuppeteerJourneyEvents.JOURNEY_END, async () => this.stopMeasure(true));
 		journey.on(PuppeteerJourneyEvents.JOURNEY_ERROR, async () => this.stopMeasure(false));
 		this.context?.eventBus.on(ModuleEvents.startsComputing, () => this.pauseMeasure());
-		this.context?.eventBus.on(ModuleEvents.endsComputing, async () => this.unpauseMeasure());
 	}
 
 	/**
@@ -249,10 +261,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 		// Samples data.
 		const samples = this.getSampleData(this.snapshots);
-		let cumulativeCpu = 0;
 
 		// Log samples data.
-		let context = null;
 		samples
 			.forEach((sample) => {
 				const item = {
@@ -265,22 +275,14 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 					...this.getSnapshotData(sample.average)
 				};
 
-				cumulativeCpu += item?.cpu || 0;
-
 				this.context?.config?.storage?.add('cpu_history', this.context, item);
 			});
 
-		// Average data.
-		const average = this.getAverageData(samples.map(item => {
-			return {metrics: item.average}
-		}), true);
-		average.time = samples[samples.length - 1].timestamp;
-		average.url = urlWrapper.url;
-		average.cpu = cumulativeCpu;
-		average.context = samples[samples.length - 1].context;
+		// Global data.
+		const global = this.getGlobalData(this.snapshots, urlWrapper.url.toString(), samples[samples.length - 1].context);
 
-		this.context?.config?.storage?.add('cpu', this.context, average);
-		this.context?.config?.logger.result('CPU', average, urlWrapper.url.toString());
+		this.context?.config?.storage?.add('cpu', this.context, global);
+		this.context?.config?.logger.result('CPU', global, urlWrapper.url.toString());
 
 		this.unpauseMeasure();
 		return true;
@@ -294,17 +296,13 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 * @private
 	 */
 	getSnapshotData(snapshot) {
-		let cumulativeDuration = 0;
 		let durationData = {};
 
 		Object.keys(durationMetrics).forEach((metricName) => {
 			if (snapshot && typeof snapshot[metricName] !== "undefined" && !isNaN(snapshot[metricName])) {
-				cumulativeDuration += snapshot[metricName] || 0;
 				durationData[metricName] = snapshot[metricName];
 			}
 		});
-
-		durationData.cpu = cumulativeDuration;
 
 		return durationData;
 	}
@@ -361,7 +359,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 * @param snapshots
 	 * @returns {{}}
 	 */
-	getAverageData(snapshots, log = false) {
+	getAverageData(snapshots) {
 		const average = {}
 		Object.keys(durationMetrics).forEach(metricName => {
 			average[metricName] = snapshots.reduce((sum, currentValue) => {
@@ -391,5 +389,27 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 		}
 
 		return derivative;
+	}
+
+	getGlobalData(snapshots, url, context) {
+		const firstSnapshot = snapshots[0];
+		const lastSnapshot = snapshots[snapshots.length - 1];
+		const global = {
+			url: url,
+			context: context,
+		}
+
+		Object.keys(globalMetrics).forEach(key => {
+			global[key] = lastSnapshot.metrics[key] - firstSnapshot.metrics[key];
+		})
+
+		// Calculate task duration without dev tools.
+		global.TaskDurationWithoutDevTools = Object.keys(globalMetrics)
+			.filter(item => item.indexOf('Duration') > -1 && item.indexOf('DevTools') < 0 && item !== 'TaskDuration')
+			.reduce((cumul, key) => {
+				return cumul + global[key];
+			}, 0);
+
+		return global;
 	}
 }
