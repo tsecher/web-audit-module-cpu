@@ -1,0 +1,142 @@
+{
+  "id": "cpu",
+  "label": "CPU",
+  "description": "CPU consumption.",
+  "types": [
+    "page"
+  ],
+  "structure": {
+    "cpu": {
+      "label": "CPU",
+      "description": "The CPU consumption result.",
+      "structure": {
+        "url": {
+          "label": "Url",
+          "description": "The audited page",
+          "type": "string"
+        },
+        "context": {
+          "label": "Context",
+          "description": "The context",
+          "type": "string"
+        },
+        "Timestamp": {
+          "label": "Time",
+          "description": "The Time",
+          "type": "number"
+        },
+        "LayoutDuration": {
+          "label": "Layout Duration (Display)",
+          "description": "The Layout Duration (Display)",
+          "type": "number"
+        },
+        "RecalcStyleDuration": {
+          "label": "Recalc Style Duration (Render)",
+          "description": "The Recalc Style Duration (Render)",
+          "type": "number"
+        },
+        "DevToolsCommandDuration": {
+          "label": "Dev Tools Command Duration",
+          "description": "The Dev Tools Command Duration",
+          "type": "number"
+        },
+        "ScriptDuration": {
+          "label": "Script Duration (Script)",
+          "description": "The Script Duration (Script)",
+          "type": "number"
+        },
+        "V8CompileDuration": {
+          "label": "V8 Compile Duration",
+          "description": "The V8 Compile Duration",
+          "type": "number"
+        },
+        "TaskOtherDuration": {
+          "label": "Task Other Duration",
+          "description": "The Task Other Duration",
+          "type": "number"
+        },
+        "TaskDuration": {
+          "label": "Task Duration",
+          "description": "The Task Duration",
+          "type": "number"
+        },
+        "TaskDurationWithoutDevTools": {
+          "label": "Task Duration without dev tools",
+          "description": "The Task Duration without dev tools",
+          "type": "number"
+        },
+        "ThreadTime": {
+          "label": "Thread time",
+          "description": "The Thread time",
+          "type": "number"
+        },
+        "ProcessTime": {
+          "label": "Process time",
+          "description": "The Process time",
+          "type": "number"
+        }
+      }
+    },
+    "cpu_details": {
+      "label": "CPU details",
+      "description": "The CPU historic details.",
+      "structure": {
+        "url": {
+          "label": "Url",
+          "description": "The audited page",
+          "type": "string"
+        },
+        "time": {
+          "label": "Time",
+          "description": "Metrics time",
+          "type": "number"
+        },
+        "step": {
+          "label": "Step",
+          "description": "Journey step",
+          "type": "string"
+        },
+        "context": {
+          "label": "Context",
+          "description": "The context",
+          "type": "string"
+        },
+        "LayoutDuration": {
+          "label": "Layout Duration",
+          "description": "The Layout Duration",  
+          "type": "number"
+        },
+        "RecalcStyleDuration": {
+            "label": "Recalc Style Duration",
+            "description": "The Recalc Style Duration",  
+            "type": "number"
+        },
+        "DevToolsCommandDuration": {
+            "label": "Dev Tools Command Duration",
+            "description": "The Dev Tools Command Duration",  
+            "type": "number"
+        },
+        "ScriptDuration": {
+            "label": "Script Duration",
+            "description": "The Script Duration",  
+            "type": "number"
+        },
+        "V8CompileDuration": {
+            "label": "V8 Compile Duration",
+            "description": "The V8 Compile Duration",  
+            "type": "number"
+        },
+        "TaskOtherDuration": {
+            "label": "Task Other Duration",
+            "description": "The Task Other Duration",  
+            "type": "number"
+        },
+        "TaskDuration": {
+            "label": "Task Duration",
+            "description": "The Task Duration",  
+            "type": "number"
+        }
+      }
+    }
+  }
+}

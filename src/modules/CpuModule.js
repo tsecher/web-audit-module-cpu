@@ -1,6 +1,8 @@
 import {AbstractPuppeteerJourneyModule} from 'web_audit/dist/journey/AbstractPuppeteerJourneyModule.js';
 import {PuppeteerJourneyEvents} from 'web_audit/dist/journey/AbstractPuppeteerJourney.js';
 import {ModuleEvents} from 'web_audit/dist/modules/ModuleInterface.js';
+import schema from "./cpu.schema.json" with {type: "json"};
+import { DefaultDeserializer } from 'v8';
 
 /**
  * CPU Module events.
@@ -51,19 +53,10 @@ const durationMetrics = {
 	// 'NavigationStart',
 };
 
-const globalMetrics = {
-	'Timestamp': 'Time',
-	'LayoutDuration': 'Layout Duration (Display)',
-	'RecalcStyleDuration': 'Recalc Style Duration (Render)',
-	'DevToolsCommandDuration': 'Dev Tools Command Duration',
-	'ScriptDuration': 'Script Duration (Script)',
-	'V8CompileDuration': 'V8 Compile Duration',
-	'TaskOtherDuration': 'Task Other Duration',
-	'TaskDuration': 'Task Duration',
-	'TaskDurationWithoutDevTools': 'Task Duration without dev tools',
-	'ThreadTime': 'Thread time',
-	'ProcessTime': 'Process time',
-}
+const globalMetrics = Object.keys(schema.structure.cpu_details.structure)
+						.filter(id => !['url', 'time', 'step', 'context'].includes(id));
+
+
 
 /**
  * CPU.
@@ -83,30 +76,19 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 	contexts = [];
 
+
+	getSchema() {
+		return schema;
+	}
+
 	/**
 	 * {@inheritdoc}
 	 */
 	async init(context) {
 		this.context = context;
 
-		// Install assets cpu store.
-		this.context.config.storage?.installStore('cpu', this.context, {
-			...{
-				url: 'Url',
-				context: 'Context',
-			},
-			...globalMetrics
-		});
-
-		this.context?.config.storage?.installStore('cpu_history', this.context, {
-			...{
-				url: 'Url',
-				time: 'Time',
-				step: 'Step',
-				context: 'Context',
-			},
-			...durationMetrics
-		});
+		// Install Page Speed store.
+		this.context.config.storage?.installSchema(this, this.context);
 
 		// Emit.
 		this.context.eventBus.emit(CpuModuleEvents.createCpuModule, {module: this});
@@ -116,12 +98,18 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 * {@inheritdoc}
 	 */
 	initEvents(journey) {
-		journey.on(PuppeteerJourneyEvents.JOURNEY_START, async (data) => this.startMeasure(data.wrapper));
-		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => {
-			this.unpauseMeasure();
-			this.contextsData.step = data.name;
+		journey.on(PuppeteerJourneyEvents.JOURNEY_START, async (data) => {
+			this.startMeasure(data.wrapper)
 		});
-		journey.on(PuppeteerJourneyEvents.JOURNEY_NEW_CONTEXT, async (data) => this.contextsData.context = data.name && this.contexts.push(data.name));
+		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => {
+			this.contextsData.step = data.name;
+			this.contextsData.url = data.url.url;
+			this.unpauseMeasure();
+		});
+		journey.on(PuppeteerJourneyEvents.JOURNEY_NEW_CONTEXT, async (data) => {
+			this.contextsData.context = data.name;
+			this.contexts.push(data.name)
+		});
 		journey.on(PuppeteerJourneyEvents.JOURNEY_END, async () => this.stopMeasure(true));
 		journey.on(PuppeteerJourneyEvents.JOURNEY_ERROR, async () => this.stopMeasure(false));
 		this.context?.eventBus.on(ModuleEvents.startsComputing, () => this.pauseMeasure());
@@ -208,6 +196,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			this.snapshots.push({
 				context: this.contextsData.context || '',
 				step: this.contextsData.step || '',
+				url: this.contextsData.url || '',
 				metrics: metricsValues,
 			})
 		}
@@ -241,8 +230,14 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 		this.context?.eventBus.emit(ModuleEvents.beforeAnalyse, {module: this, url: urlWrapper});
 
 		const result = this.getResult(urlWrapper);
-		this.context?.eventBus.emit(CpuModuleEvents.onResult, {module: this, url: urlWrapper, result: result});
-		this.context?.eventBus.emit(CpuModuleEvents.afterAnalyse, {module: this, url: urlWrapper, result: result});
+
+
+		this.context?.config?.logger.result(`CPU`, result.summary, urlWrapper.url.toString());
+		this.context?.eventBus.emit(ModuleEvents.onAnalyseSummary, {module: this, group_id:`cpu` , url: urlWrapper, summary: result.summary});
+		this.context?.config?.storage?.add(this, 'cpu', this.context, result.summary);
+
+		this.context?.eventBus.emit(CpuModuleEvents.onResult, {module: this, url: urlWrapper, result: result.summary});
+		this.context?.eventBus.emit(CpuModuleEvents.afterAnalyse, {module: this, url: urlWrapper, result: result.summary});
 		this.context?.eventBus.emit(ModuleEvents.afterAnalyse, {module: this, url: urlWrapper});
 
 		return Promise.resolve(result?.success || false);
@@ -258,6 +253,14 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 */
 	getResult(urlWrapper) {
 		this.snapshots.sort((snapA, snapB) => snapA.metrics.Timestamp - snapB.metrics.Timestamp);
+
+		const history = this.computeCpuHistory(this.snapshots);
+
+		return {
+			'summary': {},
+			'details': history,
+		}
+		
 
 		// Samples data.
 		const samples = this.getSampleData(this.snapshots);
@@ -411,5 +414,47 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			}, 0);
 
 		return global;
+	}
+
+
+	computeCpuHistory(samples) {
+		const history = [];
+
+		for (let i = 1; i < samples.length; i++) {
+			const prev = samples[i - 1].metrics;
+			const curr = samples[i].metrics;
+
+			const deltaTime = curr.Timestamp - prev.Timestamp; // en secondes
+
+			
+			const result = {
+				...samples[i],
+				time: curr.Timestamp
+			}
+
+
+			// const deltaTask = curr.TaskDuration - prev.TaskDuration; // en secondes CPU
+
+			// const cpuPercent = deltaTime > 0 ? (deltaTask / deltaTime) * 100 : 0;
+
+			// history.push({
+			// timestamp: curr.Timestamp,
+			// step: curr.step,
+			// cpuPercent: Math.round(cpuPercent * 100) / 100, // arrondi à 2 décimales
+			// });
+
+
+			Object.values(globalMetrics).forEach(metricId => {
+				const deltaMetric = curr[metricId] - prev[metricId];
+				const percent = deltaTime > 0 ? (deltaMetric / deltaTime) * 100 : 0;
+				result[metricId] = Math.round(percent * 100) / 100;
+			});
+
+			this.context?.config?.storage?.add(this, 'cpu_details', this.context, result);
+
+			history.push(result);
+		}
+
+		return history;
 	}
 }
