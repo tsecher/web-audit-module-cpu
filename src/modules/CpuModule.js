@@ -2,7 +2,6 @@ import {AbstractPuppeteerJourneyModule} from 'web_audit/dist/journey/AbstractPup
 import {PuppeteerJourneyEvents} from 'web_audit/dist/journey/AbstractPuppeteerJourney.js';
 import {ModuleEvents} from 'web_audit/dist/modules/ModuleInterface.js';
 import schema from "./cpu.schema.json" with {type: "json"};
-import { DefaultDeserializer } from 'v8';
 
 /**
  * CPU Module events.
@@ -15,45 +14,10 @@ export const CpuModuleEvents = {
 	afterAnalyse: 'cpu_module__afterAnalyse',
 };
 
-const durationMetrics = {
-	// 'Timestamp',
-	// 'AudioHandlers',
-	// 'Documents',
-	// 'Frames',
-	// 'JSEventListeners',
-	// 'LayoutObjects',
-	// 'MediaKeySessions',
-	// 'MediaKeys',
-	// 'Nodes',
-	// 'Resources',
-	// 'ContextLifecycleStateObservers',
-	// 'V8PerContextDatas',
-	// 'WorkerGlobalScopes',
-	// 'UACSSResources',
-	// 'RTCPeerConnections',
-	// 'ResourceFetchers',
-	// 'AdSubframes',
-	// 'DetachedScriptStates',
-	// 'ArrayBufferContents',
-	// 'LayoutCount',
-	// 'RecalcStyleCount',
-	'LayoutDuration': 'Layout Duration',
-	'RecalcStyleDuration': 'Recalc Style Duration',
-	'DevToolsCommandDuration': 'Dev Tools Command Duration',
-	'ScriptDuration': 'Script Duration',
-	'V8CompileDuration': 'V8 Compile Duration',
-	'TaskOtherDuration': 'Task Other Duration',
-	'TaskDuration': 'Task Duration',
-	// 'ThreadTime',
-	// 'ProcessTime',
-	// 'JSHeapUsedSize',
-	// 'JSHeapTotalSize',
-	// 'FirstMeaningfulPaint',
-	// 'DomContentLoaded',
-	// 'NavigationStart',
-};
+const summaryMetrics = Object.keys(schema.structure.cpu.structure)
+						.filter(id => !['url', 'context', 'Timestamp'].includes(id)); 
 
-const globalMetrics = Object.keys(schema.structure.cpu_details.structure)
+const globalMetrics = Object.keys(schema.structure.cpu_history.structure)
 						.filter(id => !['url', 'time', 'step', 'context'].includes(id));
 
 
@@ -78,7 +42,13 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 
 	getSchema() {
-		return schema;
+		if(this.isHistoryEnabled()){
+			return schema;
+		}
+
+		const schema2 = JSON.parse(JSON.stringify(schema));
+		delete schema2.structure.cpu_history;
+		return schema2;	
 	}
 
 	/**
@@ -92,6 +62,10 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 		// Emit.
 		this.context.eventBus.emit(CpuModuleEvents.createCpuModule, {module: this});
+	}
+
+	isHistoryEnabled() {
+		return this.context.config?.AppConfig?.config?.cpu?.history === true;
 	}
 
 	/**
@@ -191,6 +165,10 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			return;
 		}
 
+		if(!this.contextsData.context) {
+			return;
+		}
+
 		const metricsValues = this.getMetricsValues(metrics);
 		if (metricsValues && !this.isPaused) {
 			this.snapshots.push({
@@ -214,6 +192,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 			.forEach((item) => {
 				values[item.name] = item.value;
 			});
+
+		values.TaskDurationWithoutDevTools = values.TaskDuration - values.DevToolsCommandDuration
 		return values;
 	}
 
@@ -231,8 +211,6 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 
 		const result = this.getResult(urlWrapper);
 
-
-		this.context?.config?.logger.result(`CPU`, result.summary, urlWrapper.url.toString());
 		this.context?.eventBus.emit(ModuleEvents.onAnalyseSummary, {module: this, group_id:`cpu` , url: urlWrapper, summary: result.summary});
 		this.context?.config?.storage?.add(this, 'cpu', this.context, result.summary);
 
@@ -254,207 +232,95 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	getResult(urlWrapper) {
 		this.snapshots.sort((snapA, snapB) => snapA.metrics.Timestamp - snapB.metrics.Timestamp);
 
-		const history = this.computeCpuHistory(this.snapshots);
+		const samples = this.getSamples(this.snapshots, this.context.config?.AppConfig?.config?.cpu?.sampling || 100);
 
-		return {
-			'summary': {},
-			'details': history,
+		const values = {
+			'summary': this.computeCpuAverage(samples),	
 		}
 		
-
-		// Samples data.
-		const samples = this.getSampleData(this.snapshots);
-
-		// Log samples data.
-		samples
-			.forEach((sample) => {
-				const item = {
-					...{
-						url: urlWrapper.url,
-						time: sample.timestamp,
-						context: sample.context,
-						step: sample.step,
-					},
-					...this.getSnapshotData(sample.average)
-				};
-
-				this.context?.config?.storage?.add('cpu_history', this.context, item);
-			});
-
-		// Global data.
-		const global = this.getGlobalData(this.snapshots, urlWrapper.url.toString(), samples[samples.length - 1].context);
-
-		this.context?.config?.storage?.add('cpu', this.context, global);
-		this.context?.config?.logger.result('CPU', global, urlWrapper.url.toString());
+		if (this.isHistoryEnabled()) {
+			values['history'] = this.computeCpuHistory(samples);
+		}
 
 		this.unpauseMeasure();
-		return true;
+		return values;
 	}
-
-	/**
-	 * Return snappshot usage value.
-	 *
-	 * @param {CPUUsageSnapshot} snapshot
-	 * @returns {{}}
-	 * @private
-	 */
-	getSnapshotData(snapshot) {
-		let durationData = {};
-
-		Object.keys(durationMetrics).forEach((metricName) => {
-			if (snapshot && typeof snapshot[metricName] !== "undefined" && !isNaN(snapshot[metricName])) {
-				durationData[metricName] = snapshot[metricName];
-			}
-		});
-
-		return durationData;
-	}
-
-	/**
-	 * Sample snaphsot data.
-	 *
-	 * @param snapshots
-	 * @returns {unknown[]}
-	 */
-	getSampleData(snapshots) {
-		const firstTimeStamp = snapshots[0].metrics.Timestamp;
-
-		// Sample snapshots.
-		let samples = {};
-		const sampleRatio = 1 / this.sampleDuration;
-		snapshots.forEach((snapshot) => {
-			const index = Math.floor(sampleRatio * (snapshot.metrics.Timestamp - firstTimeStamp)) / sampleRatio;
-			samples[`index_${index}`] = samples[`index_${index}`] || {
-				timestamp: index,
-				context: snapshot.context,
-				step: snapshot.step,
-				snapshots: []
-			};
-			samples[`index_${index}`].snapshots.push(snapshot);
-		});
-
-		samples = Object.values(samples);
-
-		const unique = (value, index, array) => array.indexOf(value) === index;
-		const contextsList = samples.map(item => item.context).filter(unique);
-
-		// Get derivative.
-		samples.map(sample => {
-			sample.snapshots = this.getDerivative(sample.snapshots);
-			sample.average = this.getAverageData(sample.snapshots);
-
-			// Reaffect correct context.
-			let realContext = contextsList.indexOf(sample.context) > -1 ? contextsList.indexOf(sample.context) : this.contexts.length - 1;
-			sample.context = this.contexts[realContext];
-
-
-			return sample;
-		});
-
-		// Sort context.
-
-		return samples;
-	}
-
-	/**
-	 * Return average data for the snapshots list.
-	 *
-	 * @param snapshots
-	 * @returns {{}}
-	 */
-	getAverageData(snapshots) {
-		const average = {}
-		Object.keys(durationMetrics).forEach(metricName => {
-			average[metricName] = snapshots.reduce((sum, currentValue) => {
-				if (currentValue && typeof currentValue?.metrics[metricName] !== 'undefined' && !isNaN(currentValue?.metrics[metricName])) {
-					return sum + currentValue?.metrics[metricName];
-				}
-				return sum || 0;
-			}, 0) / snapshots.length;
-		});
-
-		return average;
-	}
-
-	/**
-	 * Return snapshots derivative.
-	 *
-	 * @param snapshots
-	 * @returns {*}
-	 */
-	getDerivative(snapshots) {
-		const derivative = [];
-		for (let i = snapshots.length - 1; i > 0; i--) {
-			Object.keys(durationMetrics).forEach(metricName => {
-				derivative[i] = derivative[i] || {metrics: {}};
-				derivative[i].metrics[metricName] = snapshots[i].metrics[metricName] - snapshots[i - 1].metrics[metricName];
-			})
-		}
-
-		return derivative;
-	}
-
-	getGlobalData(snapshots, url, context) {
-		const firstSnapshot = snapshots[0];
-		const lastSnapshot = snapshots[snapshots.length - 1];
-		const global = {
-			url: url,
-			context: context,
-		}
-
-		Object.keys(globalMetrics).forEach(key => {
-			global[key] = lastSnapshot.metrics[key] - firstSnapshot.metrics[key];
-		})
-
-		// Calculate task duration without dev tools.
-		global.TaskDurationWithoutDevTools = Object.keys(globalMetrics)
-			.filter(item => item.indexOf('Duration') > -1 && item.indexOf('DevTools') < 0 && item !== 'TaskDuration')
-			.reduce((cumul, key) => {
-				return cumul + global[key];
-			}, 0);
-
-		return global;
-	}
-
 
 	computeCpuHistory(samples) {
 		const history = [];
+
+		const firstTIme = samples[0].metrics.Timestamp;
 
 		for (let i = 1; i < samples.length; i++) {
 			const prev = samples[i - 1].metrics;
 			const curr = samples[i].metrics;
 
 			const deltaTime = curr.Timestamp - prev.Timestamp; // en secondes
-
-			
 			const result = {
 				...samples[i],
-				time: curr.Timestamp
+				time: curr.Timestamp - firstTIme
 			}
-
-
-			// const deltaTask = curr.TaskDuration - prev.TaskDuration; // en secondes CPU
-
-			// const cpuPercent = deltaTime > 0 ? (deltaTask / deltaTime) * 100 : 0;
-
-			// history.push({
-			// timestamp: curr.Timestamp,
-			// step: curr.step,
-			// cpuPercent: Math.round(cpuPercent * 100) / 100, // arrondi à 2 décimales
-			// });
-
 
 			Object.values(globalMetrics).forEach(metricId => {
 				const deltaMetric = curr[metricId] - prev[metricId];
-				const percent = deltaTime > 0 ? (deltaMetric / deltaTime) * 100 : 0;
-				result[metricId] = Math.round(percent * 100) / 100;
+				result[metricId] = deltaMetric;
+				// const percent = deltaTime > 0 ? (deltaMetric / deltaTime) * 100 : 0;
+				// result[metricId] = Math.round(percent * 100) / 100;
 			});
 
-			this.context?.config?.storage?.add(this, 'cpu_details', this.context, result);
+			this.context?.config?.storage?.add(this, 'cpu_history', this.context, result);
 
 			history.push(result);
 		}
 
 		return history;
+	}
+
+	computeCpuAverage(samples) {
+		const first = samples[0];
+		const last = samples.at(-1);
+
+		const firstTime = first.metrics.Timestamp;
+		const lastTime = last.metrics.Timestamp;
+		const deltaTime = lastTime - firstTime;
+
+		const result = {
+			...last,
+			'Timestamp': deltaTime,
+		}
+
+		Object.values(summaryMetrics).forEach(metricId => {
+			if( metricId.includes('_prct')){
+				return;
+			}
+
+			const deltaMetric = last.metrics[metricId] - first.metrics[metricId];
+			result[metricId] = deltaMetric;
+
+			const percent = deltaTime > 0 ? (deltaMetric / deltaTime) * 100 : 0;
+			result[metricId + '_prct'] = Math.round(percent * 100) / 100;
+		});
+
+		return result;
+	}
+
+	getSamples(snapshots, sampling = 100){
+		// Micros secondes;
+		sampling = sampling / 1000; 
+		const samples = [];
+
+		const first =  snapshots[0];
+		let time = first.metrics.Timestamp;
+
+		snapshots.forEach(snap => {
+			if(snap.metrics.Timestamp - time > sampling){
+				time = snap.metrics.Timestamp;
+				samples.push(snap);
+			}
+		});
+
+		samples.push(snapshots.at(-1));
+
+		return samples;
 	}
 }

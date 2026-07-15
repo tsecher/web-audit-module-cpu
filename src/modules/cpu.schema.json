@@ -26,59 +26,109 @@
           "type": "number"
         },
         "LayoutDuration": {
-          "label": "Layout Duration (Display)",
-          "description": "The Layout Duration (Display)",
+          "label": "Layout Duration (Display) (cumulated)",
+          "description": "Cumulated time spent computing page layout, i.e. the position and size of DOM elements",
+          "type": "number"
+        },
+        "LayoutDuration_prct": {
+          "label": "Layout Duration (Display) (%)",
+          "description": "Proportion of the execution time spent computing page layout",
           "type": "number"
         },
         "RecalcStyleDuration": {
-          "label": "Recalc Style Duration (Render)",
-          "description": "The Recalc Style Duration (Render)",
+          "label": "Recalc Style Duration (Render) (cumulated)",
+          "description": "Cumulated time spent recalculating CSS styles applied to DOM elements",
+          "type": "number"
+        },
+        "RecalcStyleDuration_prct": {
+          "label": "Recalc Style Duration (Render) (%)",
+          "description": "Proportion of the execution time spent recalculating CSS styles",
           "type": "number"
         },
         "DevToolsCommandDuration": {
-          "label": "Dev Tools Command Duration",
-          "description": "The Dev Tools Command Duration",
+          "label": "Dev Tools Command Duration (cumulated)",
+          "description": "Cumulated time spent processing Chrome DevTools Protocol commands",
+          "type": "number"
+        },
+        "DevToolsCommandDuration_prct": {
+          "label": "Dev Tools Command Duration (%)",
+          "description": "Proportion of the execution time spent processing Chrome DevTools Protocol commands",
           "type": "number"
         },
         "ScriptDuration": {
-          "label": "Script Duration (Script)",
-          "description": "The Script Duration (Script)",
+          "label": "Script Duration (Script) (cumulated)",
+          "description": "Cumulated time spent executing JavaScript code",
+          "type": "number"
+        },
+        "ScriptDuration_prct": {
+          "label": "Script Duration (Script) (%)",
+          "description": "Proportion of the execution time spent executing JavaScript code",
           "type": "number"
         },
         "V8CompileDuration": {
-          "label": "V8 Compile Duration",
-          "description": "The V8 Compile Duration",
+          "label": "V8 Compile Duration (cumulated)",
+          "description": "Cumulated time spent by the V8 engine parsing and compiling JavaScript code before execution",
+          "type": "number"
+        },
+        "V8CompileDuration_prct": {
+          "label": "V8 Compile Duration (%)",
+          "description": "Proportion of the execution time spent parsing and compiling JavaScript code",
           "type": "number"
         },
         "TaskOtherDuration": {
-          "label": "Task Other Duration",
-          "description": "The Task Other Duration",
+          "label": "Task Other Duration (cumulated)",
+          "description": "Cumulated time spent on main-thread tasks that do not fall into any other specific category (script, layout, style, etc.)",
+          "type": "number"
+        },
+        "TaskOtherDuration_prct": {
+          "label": "Task Other Duration (%)",
+          "description": "Proportion of the execution time spent on uncategorized main-thread tasks",
           "type": "number"
         },
         "TaskDuration": {
-          "label": "Task Duration",
-          "description": "The Task Duration",
+          "label": "Task Duration (cumulated)",
+          "description": "Cumulated time spent on all tasks executed on the renderer's main thread",
+          "type": "number"
+        },
+        "TaskDuration_prct": {
+          "label": "Task Duration (%)",
+          "description": "Proportion of the execution time occupied by the renderer's main thread",
           "type": "number"
         },
         "TaskDurationWithoutDevTools": {
-          "label": "Task Duration without dev tools",
-          "description": "The Task Duration without dev tools",
+          "label": "Task Duration without dev tools (cumulated)",
+          "description": "Cumulated main-thread task time, excluding time spent processing Chrome DevTools Protocol commands",
+          "type": "number"
+        },
+        "TaskDurationWithoutDevTools_prct": {
+          "label": "Task Duration without dev tools (%)",
+          "description": "Proportion of the execution time occupied by the main thread, excluding Chrome DevTools Protocol command processing",
           "type": "number"
         },
         "ThreadTime": {
-          "label": "Thread time",
-          "description": "The Thread time",
+          "label": "Thread time (cumulated)",
+          "description": "Cumulated CPU time consumed by the main thread, as measured at the operating system level",
+          "type": "number"
+        },
+        "ThreadTime_prct": {
+          "label": "Thread time (%)",
+          "description": "Proportion of the execution time corresponding to the main thread's OS-level CPU consumption",
           "type": "number"
         },
         "ProcessTime": {
-          "label": "Process time",
-          "description": "The Process time",
+          "label": "Process time (cumulated)",
+          "description": "Cumulated CPU time consumed by the entire renderer process, across all its threads",
+          "type": "number"
+        },
+        "ProcessTime_prct": {
+          "label": "Process time (%)",
+          "description": "Proportion of the execution time corresponding to the renderer process's overall CPU consumption",
           "type": "number"
         }
       }
     },
-    "cpu_details": {
-      "label": "CPU details",
+    "cpu_history": {
+      "label": "CPU history",
       "description": "The CPU historic details.",
       "structure": {
         "url": {
@@ -102,39 +152,54 @@
           "type": "string"
         },
         "LayoutDuration": {
-          "label": "Layout Duration",
-          "description": "The Layout Duration",  
+          "label": "Layout Duration (Display) (cumulated)",
+          "description": "Cumulated time spent computing page layout, i.e. the position and size of DOM elements",
           "type": "number"
         },
         "RecalcStyleDuration": {
-            "label": "Recalc Style Duration",
-            "description": "The Recalc Style Duration",  
-            "type": "number"
+          "label": "Recalc Style Duration (Render) (cumulated)",
+          "description": "Cumulated time spent recalculating CSS styles applied to DOM elements",
+          "type": "number"
         },
         "DevToolsCommandDuration": {
-            "label": "Dev Tools Command Duration",
-            "description": "The Dev Tools Command Duration",  
-            "type": "number"
+          "label": "Dev Tools Command Duration (cumulated)",
+          "description": "Cumulated time spent processing Chrome DevTools Protocol commands",
+          "type": "number"
         },
         "ScriptDuration": {
-            "label": "Script Duration",
-            "description": "The Script Duration",  
-            "type": "number"
+          "label": "Script Duration (Script) (cumulated)",
+          "description": "Cumulated time spent executing JavaScript code",
+          "type": "number"
         },
         "V8CompileDuration": {
-            "label": "V8 Compile Duration",
-            "description": "The V8 Compile Duration",  
-            "type": "number"
+          "label": "V8 Compile Duration (cumulated)",
+          "description": "Cumulated time spent by the V8 engine parsing and compiling JavaScript code before execution",
+          "type": "number"
         },
         "TaskOtherDuration": {
-            "label": "Task Other Duration",
-            "description": "The Task Other Duration",  
-            "type": "number"
+          "label": "Task Other Duration (cumulated)",
+          "description": "Cumulated time spent on main-thread tasks that do not fall into any other specific category (script, layout, style, etc.)",
+          "type": "number"
         },
         "TaskDuration": {
-            "label": "Task Duration",
-            "description": "The Task Duration",  
-            "type": "number"
+          "label": "Task Duration (cumulated)",
+          "description": "Cumulated time spent on all tasks executed on the renderer's main thread",
+          "type": "number"
+        },
+        "TaskDurationWithoutDevTools": {
+          "label": "Task Duration without dev tools (cumulated)",
+          "description": "Cumulated main-thread task time, excluding time spent processing Chrome DevTools Protocol commands",
+          "type": "number"
+        },
+        "ThreadTime": {
+          "label": "Thread time (cumulated)",
+          "description": "Cumulated CPU time consumed by the main thread, as measured at the operating system level",
+          "type": "number"
+        },
+        "ProcessTime": {
+          "label": "Process time (cumulated)",
+          "description": "Cumulated CPU time consumed by the entire renderer process, across all its threads",
+          "type": "number"
         }
       }
     }
