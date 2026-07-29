@@ -73,7 +73,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 	 */
 	initEvents(journey) {
 		journey.on(PuppeteerJourneyEvents.JOURNEY_START, async (data) => {
-			this.startMeasure(data.wrapper)
+			await this.startMeasure(data.wrapper)
 		});
 		journey.on(PuppeteerJourneyEvents.JOURNEY_BEFORE_STEP, async (data) => {
 			this.contextsData.step = data.name;
@@ -159,7 +159,6 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 		let metrics;
 		try {
 			metrics = await this.cdp.send('Performance.getMetrics');
-			this.hasValue = true;
 		} catch (err) {
 			this.stopMeasure(true);
 			return;
@@ -170,6 +169,8 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 		}
 
 		const metricsValues = this.getMetricsValues(metrics);
+		this.hasValue = true;
+		
 		if (metricsValues && !this.isPaused) {
 			this.snapshots.push({
 				context: this.contextsData.context || '',
@@ -304,8 +305,7 @@ export default class CpuModule extends AbstractPuppeteerJourneyModule {
 		return result;
 	}
 
-	getSamples(snapshots, sampling = 100){
-		// Micros secondes;
+	getSamples(snapshots, sampling = 100) {
 		sampling = sampling / 1000; 
 		const samples = [];
 
