@@ -10,7 +10,7 @@ CPU module for web_audit.
 export const config = {
 	modules: [
         ...
-        'node_modules/web-audit-module-page-speed/src/modules/PageSpeedModule.js'
+        'node_modules/web-audit-module-cpu/src/modules/CpuModule.js'
     ],
 },
 ```
@@ -23,7 +23,7 @@ export const config = {
     }
 ```
 
-## Configiuration
+## Configuration
 By default, the sampling delay is 100ms, but you can choose a different one in the web-audit.config.js file :
 ```
 export const config = {
