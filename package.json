@@ -6,7 +6,8 @@
   "type": "module",
   "keywords": [
     "web-audit",
-    "cpu"
+    "web-audit-plugin",
+    "lighthouse"
   ],
   "dependencies": {
     "web_audit": "https://github.com/tsecher/web-audit.git"
